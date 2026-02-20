@@ -65,8 +65,10 @@ export function AuthProvider({ children }) {
         const message =
           err.response?.data?.message ||
           "Registration failed. Please try again.";
+        // Server may return per-field errors: [{ field, message }]
+        const serverFieldErrors = err.response?.data?.errors ?? [];
         setError(message);
-        return { success: false, message };
+        return { success: false, message, fieldErrors: serverFieldErrors };
       } finally {
         setLoading(false);
       }
@@ -86,8 +88,10 @@ export function AuthProvider({ children }) {
       } catch (err) {
         const message =
           err.response?.data?.message || "Login failed. Please try again.";
+        // Server may return per-field errors: [{ field, message }]
+        const serverFieldErrors = err.response?.data?.errors ?? [];
         setError(message);
-        return { success: false, message };
+        return { success: false, message, fieldErrors: serverFieldErrors };
       } finally {
         setLoading(false);
       }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Alert from "../components/ui/Alert";
@@ -46,6 +46,27 @@ function validate(fields) {
   return errors;
 }
 
+// Real-time password strength scoring (0–5)
+function scorePassword(p) {
+  if (!p) return 0;
+  let score = 0;
+  if (p.length >= 8) score++;
+  if (/[A-Z]/.test(p)) score++;
+  if (/[a-z]/.test(p)) score++;
+  if (/\d/.test(p)) score++;
+  if (/[@$!%*?&]/.test(p)) score++;
+  return score;
+}
+
+const STRENGTH_CONFIG = [
+  { label: "", color: "bg-gray-200" }, // 0 — empty
+  { label: "Very weak", color: "bg-red-500" }, // 1
+  { label: "Weak", color: "bg-orange-400" }, // 2
+  { label: "Fair", color: "bg-yellow-400" }, // 3
+  { label: "Good", color: "bg-lime-500" }, // 4
+  { label: "Strong", color: "bg-green-500" }, // 5
+];
+
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { register, loading, error, clearError, token } = useAuth();
@@ -57,7 +78,11 @@ export default function RegisterPage() {
     confirmPassword: "",
   });
   const [fieldErrors, setFieldErrors] = useState({});
+  const [touched, setTouched] = useState({});
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Prevent double-submit
+  const submittingRef = useRef(false);
 
   // Already logged in — redirect immediately
   useEffect(() => {
@@ -67,55 +92,73 @@ export default function RegisterPage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFields((prev) => ({ ...prev, [name]: value }));
+    setTouched((prev) => ({ ...prev, [name]: true }));
     if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
     if (error) clearError();
   };
 
+  const focusFirstError = (errors) => {
+    const firstKey = Object.keys(errors)[0];
+    document.getElementById(firstKey)?.focus();
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submittingRef.current || loading) return;
+
     const errors = validate(fields);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
+      setTouched((prev) => ({
+        ...prev,
+        ...Object.fromEntries(Object.keys(errors).map((k) => [k, true])),
+      }));
+      focusFirstError(errors);
       return;
     }
 
-    // confirmPassword is a UI-only field — never sent to the API
-    const { confirmPassword: _unused, ...payload } = fields;
-    const result = await register(payload);
-    if (result.success) {
-      setSuccessMsg("Account created! Redirecting to dashboard…");
-      setTimeout(() => navigate("/dashboard", { replace: true }), 800);
+    submittingRef.current = true;
+    try {
+      // confirmPassword is a UI-only field — never sent to the API
+      const { confirmPassword: _unused, ...payload } = fields;
+      // Trim whitespace from name and email before sending
+      payload.name = payload.name.trim();
+      payload.email = payload.email.trim();
+
+      const result = await register(payload);
+      if (result.success) {
+        setSuccessMsg("Account created! Redirecting to dashboard…");
+        setTimeout(() => navigate("/dashboard", { replace: true }), 800);
+      } else if (result.fieldErrors?.length) {
+        const mapped = {};
+        result.fieldErrors.forEach(({ field, message }) => {
+          mapped[field] = message;
+        });
+        setFieldErrors(mapped);
+        focusFirstError(mapped);
+      }
+    } finally {
+      submittingRef.current = false;
     }
   };
 
-  // Real-time password strength indicator
-  const strength = (() => {
-    const p = fields.password;
-    if (!p) return 0;
-    let score = 0;
-    if (p.length >= 8) score++;
-    if (/[A-Z]/.test(p)) score++;
-    if (/[a-z]/.test(p)) score++;
-    if (/\d/.test(p)) score++;
-    if (/[@$!%*?&]/.test(p)) score++;
-    return score; // 0–5
-  })();
-
-  const strengthConfig = [
-    { label: "", color: "bg-gray-200" }, // 0 — empty
-    { label: "Very weak", color: "bg-red-500" }, // 1
-    { label: "Weak", color: "bg-orange-400" }, // 2
-    { label: "Fair", color: "bg-yellow-400" }, // 3
-    { label: "Good", color: "bg-lime-500" }, // 4
-    { label: "Strong", color: "bg-green-500" }, // 5
-  ][strength];
+  const strength = scorePassword(fields.password);
+  const strengthConfig = STRENGTH_CONFIG[strength];
+  // A field is "valid" when touched, has a value, and is error-free
+  const isValid = (name) => touched[name] && fields[name] && !fieldErrors[name];
+  // Real-time confirm-password match (only show when both have values)
+  const confirmMatch =
+    fields.confirmPassword && fields.password === fields.confirmPassword;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600">
+          <div
+            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600"
+            aria-hidden="true"
+          >
             <svg
               className="h-6 w-6 text-white"
               fill="none"
@@ -139,7 +182,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl bg-white px-8 py-10 shadow-sm ring-1 ring-gray-200">
+        <div className="rounded-2xl bg-white px-6 py-10 shadow-sm ring-1 ring-gray-200 sm:px-8">
           {successMsg && (
             <Alert type="success" message={successMsg} className="mb-6" />
           )}
@@ -152,8 +195,14 @@ export default function RegisterPage() {
             />
           )}
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-5">
+          <form
+            onSubmit={handleSubmit}
+            noValidate
+            className="space-y-5"
+            aria-label="Create account form"
+          >
             <Input
+              autoFocus
               label="Full name"
               id="name"
               name="name"
@@ -163,7 +212,9 @@ export default function RegisterPage() {
               value={fields.name}
               onChange={handleChange}
               error={fieldErrors.name}
+              valid={isValid("name")}
               disabled={loading}
+              placeholder="Jane Smith"
             />
 
             <Input
@@ -176,9 +227,12 @@ export default function RegisterPage() {
               value={fields.email}
               onChange={handleChange}
               error={fieldErrors.email}
+              valid={isValid("email")}
               disabled={loading}
+              placeholder="you@example.com"
             />
 
+            {/* Password with strength meter */}
             <div className="space-y-1">
               <Input
                 label="Password"
@@ -192,43 +246,86 @@ export default function RegisterPage() {
                 error={fieldErrors.password}
                 disabled={loading}
                 hint="Min 8 chars · uppercase · lowercase · number"
+                aria-describedby="password-hint password-strength"
               />
-              {/* Strength bar */}
+
+              {/* Accessible strength meter */}
               {fields.password && (
-                <div className="flex items-center gap-2 pt-1">
-                  <div className="flex flex-1 gap-1">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <div
-                        key={i}
-                        className={`h-1.5 flex-1 rounded-full transition-colors ${
-                          i <= strength ? strengthConfig.color : "bg-gray-200"
-                        }`}
-                      />
-                    ))}
+                <div className="pt-1">
+                  <div
+                    role="meter"
+                    aria-label="Password strength"
+                    aria-valuenow={strength}
+                    aria-valuemin={0}
+                    aria-valuemax={5}
+                    aria-valuetext={strengthConfig.label || "empty"}
+                    id="password-strength"
+                    className="flex items-center gap-2"
+                  >
+                    <div className="flex flex-1 gap-1" aria-hidden="true">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div
+                          key={i}
+                          className={`h-1.5 flex-1 rounded-full transition-colors duration-200 ${
+                            i <= strength ? strengthConfig.color : "bg-gray-200"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span
+                      className="w-16 text-right text-xs text-gray-500"
+                      aria-hidden="true"
+                    >
+                      {strengthConfig.label}
+                    </span>
                   </div>
-                  <span className="text-xs text-gray-500 w-16 text-right">
-                    {strengthConfig.label}
-                  </span>
                 </div>
               )}
             </div>
 
-            <Input
-              label="Confirm password"
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={fields.confirmPassword}
-              onChange={handleChange}
-              error={fieldErrors.confirmPassword}
-              disabled={loading}
-            />
+            {/* Confirm password with live match indicator */}
+            <div className="space-y-1">
+              <Input
+                label="Confirm password"
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={fields.confirmPassword}
+                onChange={handleChange}
+                error={fieldErrors.confirmPassword}
+                valid={!!confirmMatch}
+                disabled={loading}
+              />
+              {/* Real-time match hint — only visible when passwords match (before form submit) */}
+              {confirmMatch && !fieldErrors.confirmPassword && (
+                <p
+                  className="flex items-center gap-1 text-xs text-green-600"
+                  aria-live="polite"
+                >
+                  <svg
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M16.704 5.296a1 1 0 010 1.414l-7.5 7.5a1 1 0 01-1.414 0l-3.5-3.5a1 1 0 111.414-1.414L8.5 12.086l6.79-6.79a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Passwords match
+                </p>
+              )}
+            </div>
 
             <button
               type="submit"
               disabled={loading}
+              aria-busy={loading}
+              aria-disabled={loading}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (
@@ -246,7 +343,7 @@ export default function RegisterPage() {
             Already have an account?{" "}
             <Link
               to="/login"
-              className="font-medium text-indigo-600 hover:text-indigo-500"
+              className="font-medium text-indigo-600 hover:text-indigo-500 focus:outline-none focus:underline"
             >
               Sign in
             </Link>

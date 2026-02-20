@@ -18,8 +18,19 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Skip-navigation link — visible only on focus for keyboard users */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-indigo-600 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to main content
+      </a>
+
       {/* Top navigation bar */}
-      <nav className="border-b border-gray-200 bg-white">
+      <nav
+        aria-label="Primary navigation"
+        className="border-b border-gray-200 bg-white"
+      >
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600">
@@ -51,7 +62,8 @@ export default function DashboardPage() {
             </div>
             <button
               onClick={handleLogout}
-              className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1"
+              aria-label="Sign out of your account"
             >
               Sign out
             </button>
@@ -60,7 +72,7 @@ export default function DashboardPage() {
       </nav>
 
       {/* Page body */}
-      <main className="mx-auto max-w-5xl px-4 py-10">
+      <main id="main-content" className="mx-auto max-w-5xl px-4 py-10">
         {/* Welcome card */}
         <div className="rounded-2xl bg-indigo-600 px-8 py-10 text-white shadow-md">
           <p className="text-sm font-medium uppercase tracking-wider text-indigo-200">
