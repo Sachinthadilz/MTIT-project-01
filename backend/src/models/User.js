@@ -48,8 +48,10 @@ const userSchema = new mongoose.Schema(
 );
 
 // ── Pre-save hook: hash password only when it has been modified ──────────────
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+// Mongoose 7+ async pre-hooks resolve by returning — do NOT call next().
+// Mongoose treats the resolved promise as the signal to continue the chain.
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
 
   const salt = await bcrypt.genSalt(SALT_ROUNDS);
   this.password = await bcrypt.hash(this.password, salt);
@@ -62,8 +64,6 @@ userSchema.pre("save", async function (next) {
     // DB write and token generation.
     this.passwordChangedAt = new Date(Date.now() - 1000);
   }
-
-  next();
 });
 
 // ── Instance method: timing-safe comparison via bcrypt ───────────────────────

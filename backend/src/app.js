@@ -7,6 +7,7 @@ const rateLimit = require("express-rate-limit");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const errorHandler = require("./middlewares/errorHandler");
+const { protect } = require("./middlewares/authMiddleware");
 
 // Load env variables before anything else
 dotenv.config();
@@ -79,6 +80,10 @@ app.get("/", (req, res) => {
 // Auth limiter scoped only to authentication endpoints — does not throttle
 // other parts of the API.
 app.use("/api/auth", authLimiter, require("./routes/authRoutes"));
+
+// Notes routes — protect applied at mount so every sub-route is
+// automatically authenticated. No individual route can be exposed accidentally.
+app.use("/api/notes", protect, require("./routes/noteRoutes"));
 
 // ── 404 handler (must come after all routes) ──────────────────────────────────
 app.use((req, res) => {

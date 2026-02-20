@@ -84,7 +84,11 @@ const buildValidator = (rules) => (req, res, next) => {
   }
 
   const errors = rules.reduce((acc, rule) => {
-    if (!rule.validate(req.body[rule.field])) {
+    const value = req.body[rule.field];
+    // Skip validation for optional fields that were not sent at all.
+    // This allows partial updates where only some fields are provided.
+    if (rule.optional && value === undefined) return acc;
+    if (!rule.validate(value)) {
       acc.push({ field: rule.field, message: rule.message });
     }
     return acc;
@@ -104,4 +108,83 @@ const buildValidator = (rules) => (req, res, next) => {
 const validateRegister = buildValidator(registerRules);
 const validateLogin = buildValidator(loginRules);
 
-module.exports = { validateRegister, validateLogin };
+// ── Note validation rules ─────────────────────────────────────────────────────
+
+/**
+ * Shared field validators for Note title and content.
+ * Reused in both create (required) and update (optional) rule sets.
+ */
+const noteTitleRule = (optional = false) => ({
+  field: "title",
+  optional,
+  validate: (v) =>
+    typeof v === "string" && v.trim().length >= 1 && v.trim().length <= 200,
+  message: "Title must be 1\u2013200 characters",
+});
+
+const noteContentRule = (optional = false) => ({
+  field: "content",
+  optional,
+  validate: (v) =>
+    typeof v === "string" && v.trim().length >= 1 && v.trim().length <= 10000,
+  message: "Content must be 1\u201310,000 characters",
+});
+
+// Create: both title and content are required
+const validateCreateNote = buildValidator([
+  noteTitleRule(false),
+  noteContentRule(false),
+]);
+
+// Update: both fields are optional — but at least one must be sent.
+// The controller provides a second layer defence for the "nothing sent" case.
+// Validation here still checks the FORMAT of whichever fields ARE provided.
+const validateUpdateNote = [
+  buildValidator([noteTitleRule(true), noteContentRule(true)]),
+  // Ensure at least one field is present before hitting the DB.
+  (req, res, next) => {
+    const { title, content } = req.body || {};
+    if (title === undefined && content === undefined) {
+      return res.status(422).json({
+        success: false,
+        message: "Validation failed",
+        errors: [
+          {
+            field: "body",
+            message: "Provide at least one field to update: title or content",
+          },
+        ],
+      });
+    }
+    next();
+  },
+];
+
+// ── Route parameter validation ────────────────────────────────────────────────
+
+/**
+ * validateObjectId — checks that req.params.id is a well-formed MongoDB ObjectId.
+ *
+ * Why: an invalid id (e.g. "abc" or "../../etc") causes Mongoose to throw a
+ * CastError which burns a DB connection. Catching it at the middleware layer
+ * is faster and produces a cleaner 400 with a descriptive message.
+ */
+const { isValidObjectId } = require("mongoose");
+
+const validateObjectId = (req, res, next) => {
+  if (!isValidObjectId(req.params.id)) {
+    return res.status(400).json({
+      success: false,
+      message: `'${req.params.id}' is not a valid resource ID`,
+    });
+  }
+  next();
+};
+
+module.exports = {
+  validateRegister,
+  validateLogin,
+  validateCreateNote,
+  validateUpdateNote,
+  validateObjectId,
+};
