@@ -9,8 +9,8 @@
  * Normalises common Mongoose and JWT errors into structured JSON responses
  * and ensures stack traces are never leaked in production.
  */
+// eslint-disable-next-line no-unused-vars
 const errorHandler = (err, req, res, next) => {
-  // eslint-disable-line no-unused-vars
   let statusCode = err.statusCode || 500;
   let message = err.message || "Internal Server Error";
 

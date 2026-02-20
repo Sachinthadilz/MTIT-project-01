@@ -8,21 +8,13 @@ const User = require("../models/User");
 /**
  * Signs a JWT for the given user ID.
  * Secret and expiry are pulled from environment variables — never hard-coded.
- *
- * Fix #4: throws a hard error early if JWT_SECRET is not configured, instead
- * of silently signing with `undefined` as the secret.
+ * JWT_SECRET presence is guaranteed by the startup guard in app.js.
  */
-const generateToken = (userId) => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error(
-      "JWT_SECRET is not defined. Check your environment variables.",
-    );
-  }
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+const generateToken = (userId) =>
+  jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
     algorithm: "HS256",
   });
-};
 
 /**
  * Returns a safe user payload — no password, no internal fields.
@@ -107,13 +99,10 @@ const login = async (req, res, next) => {
 /**
  * GET /api/auth/me   (protected route — requires valid JWT via authMiddleware)
  * Returns the currently authenticated user's profile.
- *
- * Fix #11: protect middleware already fetched and validated the user;
- * use req.user directly instead of making a redundant DB round-trip.
+ * req.user is fully populated by protect — no additional DB call needed.
  */
 const getMe = async (req, res, next) => {
   try {
-    // req.user is fully populated by the protect middleware — no DB call needed.
     return res.status(200).json({
       success: true,
       user: sanitizeUser(req.user),

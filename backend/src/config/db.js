@@ -1,11 +1,19 @@
+"use strict";
+
 const mongoose = require("mongoose");
 
+/**
+ * Connects to MongoDB using the MONGO_URI environment variable.
+ * Exits the process on failure — the server cannot run without a database.
+ */
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`MongoDB Connection Error: ${error.message}`);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[DB] Connected to ${conn.connection.host}`);
+    }
+  } catch (err) {
+    console.error(`[DB] Connection failed: ${err.message}`);
     process.exit(1);
   }
 };

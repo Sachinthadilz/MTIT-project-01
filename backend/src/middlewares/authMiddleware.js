@@ -10,12 +10,11 @@ const User = require("../models/User");
  * attaches the corresponding user document to req.user so downstream handlers
  * can access the authenticated identity without making another DB call.
  *
- * Security fixes applied:
- *  #9  — guard against empty token string ("Bearer " with nothing after)
- *  #10 — all failure branches return the same generic "Invalid token" message
- *         to avoid leaking whether a user exists in the system
- *  #8  — checks passwordChangedAt so tokens issued before a password reset
- *         are automatically rejected
+ * - Guards against empty token string ("Bearer " with nothing after).
+ * - All failure branches return the same generic message to prevent
+ *   user-enumeration via differing 401 response bodies.
+ * - Checks passwordChangedAt so tokens issued before a password reset
+ *   are automatically rejected.
  *
  * Usage: router.get('/protected', protect, handler)
  */
@@ -24,7 +23,7 @@ const protect = async (req, res, next) => {
     // 1. Extract the token from the Authorization header
     const authHeader = req.headers.authorization;
 
-    // Fix #9: check both presence of header AND that the token part is non-empty
+    // Check both presence of header AND that the token part is non-empty.
     if (
       !authHeader ||
       !authHeader.startsWith("Bearer ") ||
@@ -45,8 +44,8 @@ const protect = async (req, res, next) => {
     //    (select: false on schema means we must explicitly opt in)
     const user = await User.findById(decoded.id).select("+passwordChangedAt");
 
-    // Fix #10: same generic message regardless of whether the user is missing
-    // or the token is simply invalid — prevents user-enumeration via 401 body.
+    // Same generic message whether the user is missing or the token is invalid
+    // — prevents user-enumeration via differing 401 response bodies.
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -54,9 +53,9 @@ const protect = async (req, res, next) => {
       });
     }
 
-    // Fix #8: reject tokens issued before the user last changed their password.
-    // This ensures that compromised tokens are invalidated the moment the
-    // account owner resets their password.
+    // Reject tokens issued before the user last changed their password.
+    // Ensures compromised tokens are invalidated the moment the account
+    // owner resets their credentials.
     if (user.changedPasswordAfter(decoded.iat)) {
       return res.status(401).json({
         success: false,
@@ -68,7 +67,7 @@ const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    // Fix #10: translate JWT errors to generic messages — never expose internals
+    // Translate JWT errors to generic messages — never expose internals.
     if (error.name === "JsonWebTokenError") {
       return res
         .status(401)

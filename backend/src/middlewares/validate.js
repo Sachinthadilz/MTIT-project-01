@@ -1,8 +1,10 @@
 "use strict";
 
+const { isValidObjectId } = require("mongoose");
+
 // ── Regex patterns ────────────────────────────────────────────────────────────
 
-// Fix #12 — stricter RFC 5321-compliant email pattern.
+// Stricter RFC 5321-compliant email pattern.
 // Rejects: consecutive dots, leading/trailing dots in local part,
 // missing TLD, whitespace anywhere.
 const EMAIL_REGEX =
@@ -10,7 +12,7 @@ const EMAIL_REGEX =
 
 /**
  * Password policy:
- *  - 8–128 characters (Fix #6: upper bound stops bcrypt DoS via 72-byte truncation)
+ *  - 8-128 characters (upper bound stops bcrypt DoS via 72-byte truncation)
  *  - At least one uppercase letter
  *  - At least one lowercase letter
  *  - At least one digit
@@ -19,7 +21,7 @@ const EMAIL_REGEX =
 const PASSWORD_REGEX =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,128}$/;
 
-// Fix #13 — name must contain only printable ASCII (no control characters).
+// Name must contain only printable ASCII (no control characters).
 const PRINTABLE_REGEX = /^[\x20-\x7E]+$/;
 
 // ── Rule definitions ──────────────────────────────────────────────────────────
@@ -27,7 +29,7 @@ const PRINTABLE_REGEX = /^[\x20-\x7E]+$/;
 const registerRules = [
   {
     field: "name",
-    // Fix #13: also enforce printable ASCII — blocks control characters like \x00
+    // Printable ASCII enforced to block control characters like \x00.
     validate: (v) =>
       typeof v === "string" &&
       v.trim().length >= 2 &&
@@ -66,13 +68,10 @@ const loginRules = [
 /**
  * buildValidator(rules) → Express middleware
  *
- * Fix #7: Guard against missing/non-object body first (wrong Content-Type,
- * empty body, etc.) before iterating rules — prevents "Cannot read property
- * of undefined" crashes.
- *
- * Runs every rule against req.body. If any rule fails, responds with 422
- * and a structured error list so the client knows exactly what to fix.
- * All rules are evaluated so the response reports every problem at once.
+ * Guards against missing/non-object body (wrong Content-Type, empty body)
+ * before iterating rules, then runs every rule against req.body. Returns 422
+ * with a structured error list so the client knows exactly what to fix.
+ * All rules are evaluated in one pass so the response reports every problem.
  */
 const buildValidator = (rules) => (req, res, next) => {
   if (!req.body || typeof req.body !== "object") {
@@ -119,7 +118,7 @@ const noteTitleRule = (optional = false) => ({
   optional,
   validate: (v) =>
     typeof v === "string" && v.trim().length >= 1 && v.trim().length <= 200,
-  message: "Title must be 1\u2013200 characters",
+  message: "Title must be 1-200 characters",
 });
 
 const noteContentRule = (optional = false) => ({
@@ -127,7 +126,7 @@ const noteContentRule = (optional = false) => ({
   optional,
   validate: (v) =>
     typeof v === "string" && v.trim().length >= 1 && v.trim().length <= 10000,
-  message: "Content must be 1\u201310,000 characters",
+  message: "Content must be 1-10,000 characters",
 });
 
 // Create: both title and content are required
@@ -165,12 +164,9 @@ const validateUpdateNote = [
 /**
  * validateObjectId — checks that req.params.id is a well-formed MongoDB ObjectId.
  *
- * Why: an invalid id (e.g. "abc" or "../../etc") causes Mongoose to throw a
- * CastError which burns a DB connection. Catching it at the middleware layer
- * is faster and produces a cleaner 400 with a descriptive message.
+ * An invalid id causes Mongoose to throw a CastError which consumes a DB
+ * connection. Catching it here is faster and returns a cleaner 400.
  */
-const { isValidObjectId } = require("mongoose");
-
 const validateObjectId = (req, res, next) => {
   if (!isValidObjectId(req.params.id)) {
     return res.status(400).json({
