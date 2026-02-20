@@ -70,7 +70,9 @@ const protect = async (req, res, next) => {
   } catch (error) {
     // Fix #10: translate JWT errors to generic messages — never expose internals
     if (error.name === "JsonWebTokenError") {
-      return res.status(401).json({ success: false, message: "Invalid token." });
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid token." });
     }
     if (error.name === "TokenExpiredError") {
       return res

@@ -78,7 +78,8 @@ const buildValidator = (rules) => (req, res, next) => {
   if (!req.body || typeof req.body !== "object") {
     return res.status(400).json({
       success: false,
-      message: "Request body is missing or not JSON. Set Content-Type: application/json.",
+      message:
+        "Request body is missing or not JSON. Set Content-Type: application/json.",
     });
   }
 
