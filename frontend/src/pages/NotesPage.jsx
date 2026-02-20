@@ -45,16 +45,6 @@ export default function NotesPage() {
   };
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleCreate = async (fields) => {
-    const result = await createNote(fields);
-    return result;
-  };
-
-  const handleUpdate = async (id, fields) => {
-    const result = await updateNote(id, fields);
-    return result;
-  };
-
   const handleDelete = async () => {
     if (!deletingNote) return;
     const result = await deleteNote(deletingNote._id);
@@ -147,7 +137,7 @@ export default function NotesPage() {
 
         {/* Create note form */}
         <div className="mb-6">
-          <CreateNoteForm onSubmit={handleCreate} saving={saving} />
+          <CreateNoteForm onSubmit={createNote} saving={saving} />
         </div>
 
         {/* Notes grid */}
@@ -182,7 +172,7 @@ export default function NotesPage() {
       {/* ── Overlays ───────────────────────────────────────────────────── */}
       <EditNoteModal
         note={editingNote}
-        onSave={handleUpdate}
+        onSave={updateNote}
         onClose={() => setEditingNote(null)}
         saving={saving}
       />

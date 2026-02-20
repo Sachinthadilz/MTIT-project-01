@@ -1,79 +1,42 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Alert from "../components/ui/Alert";
 import Input from "../components/ui/Input";
 import Spinner from "../components/ui/Spinner";
-
-// ── Client-side validation — mirrors backend rules exactly ────────────────────
-const EMAIL_RE =
-  /^[a-zA-Z0-9](?:[a-zA-Z0-9._%+\-]{0,62}[a-zA-Z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z]{2,})+$/;
-
-function validate(fields) {
-  const errors = {};
-  if (!fields.email.trim()) {
-    errors.email = "Email is required";
-  } else if (!EMAIL_RE.test(fields.email.trim())) {
-    errors.email = "Please enter a valid email address";
-  }
-  if (!fields.password) {
-    errors.password = "Password is required";
-  }
-  return errors;
-}
+import { useFormFields } from "../hooks/useFormFields";
+import { validateLogin } from "../lib/validators";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, loading, error, clearError, token } = useAuth();
 
-  const [fields, setFields] = useState({ email: "", password: "" });
-  const [fieldErrors, setFieldErrors] = useState({});
-  // Track which fields have been touched so we only show ✓ after interaction
-  const [touched, setTouched] = useState({});
   const [successMsg, setSuccessMsg] = useState("");
-
-  // Prevent double-submit: true while an async submit is in-flight
-  const submittingRef = useRef(false);
-
-  // The URL the user originally tried to reach (if redirected by PrivateRoute)
   const from = location.state?.from?.pathname || "/dashboard";
+
+  const {
+    fields,
+    fieldErrors,
+    submittingRef,
+    handleChange,
+    focusFirstError,
+    markErrors,
+    isValid,
+  } = useFormFields({ email: "", password: "" }, clearError);
 
   // Already logged in — redirect immediately
   useEffect(() => {
     if (token) navigate(from, { replace: true });
   }, [token, navigate, from]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFields((prev) => ({ ...prev, [name]: value }));
-    setTouched((prev) => ({ ...prev, [name]: true }));
-    // Clear the per-field error as the user corrects a field
-    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
-    if (error) clearError();
-  };
-
-  // Focus the first field that has a validation error
-  const focusFirstError = (errors) => {
-    const firstKey = Object.keys(errors)[0];
-    const el = document.getElementById(firstKey);
-    el?.focus();
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Guard against duplicate submissions (e.g. rapid double-click)
     if (submittingRef.current || loading) return;
 
-    const errors = validate(fields);
+    const errors = validateLogin(fields);
     if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      // Mark errored fields as touched so valid-state indicator is accurate
-      setTouched((prev) => ({
-        ...prev,
-        ...Object.fromEntries(Object.keys(errors).map((k) => [k, true])),
-      }));
+      markErrors(errors);
       focusFirstError(errors);
       return;
     }
@@ -81,7 +44,7 @@ export default function LoginPage() {
     submittingRef.current = true;
     try {
       const result = await login({
-        email: fields.email.trim(), // trim whitespace before sending
+        email: fields.email.trim(),
         password: fields.password,
       });
 
@@ -89,21 +52,16 @@ export default function LoginPage() {
         setSuccessMsg("Login successful! Redirecting…");
         setTimeout(() => navigate(from, { replace: true }), 800);
       } else if (result.fieldErrors?.length) {
-        // Map any server-returned per-field errors straight into the inline fields
-        const mapped = {};
-        result.fieldErrors.forEach(({ field, message }) => {
-          mapped[field] = message;
-        });
-        setFieldErrors(mapped);
+        const mapped = Object.fromEntries(
+          result.fieldErrors.map(({ field, message }) => [field, message]),
+        );
+        markErrors(mapped);
         focusFirstError(mapped);
       }
     } finally {
       submittingRef.current = false;
     }
   };
-
-  // A field is "valid" when it has been touched, has a value and has no error
-  const isValid = (name) => touched[name] && fields[name] && !fieldErrors[name];
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">

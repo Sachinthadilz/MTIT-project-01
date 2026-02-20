@@ -1,50 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Alert from "../components/ui/Alert";
 import Input from "../components/ui/Input";
 import Spinner from "../components/ui/Spinner";
-
-// ── Client-side validation — mirrors backend rules exactly ────────────────────
-const EMAIL_RE =
-  /^[a-zA-Z0-9](?:[a-zA-Z0-9._%+\-]{0,62}[a-zA-Z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z]{2,})+$/;
-
-const PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,128}$/;
-
-const PRINTABLE_RE = /^[\x20-\x7E]+$/;
-
-function validate(fields) {
-  const errors = {};
-  const name = fields.name.trim();
-  if (!name) {
-    errors.name = "Name is required";
-  } else if (name.length < 2 || name.length > 50) {
-    errors.name = "Name must be 2–50 characters";
-  } else if (!PRINTABLE_RE.test(name)) {
-    errors.name = "Name contains invalid characters";
-  }
-
-  if (!fields.email.trim()) {
-    errors.email = "Email is required";
-  } else if (!EMAIL_RE.test(fields.email.trim())) {
-    errors.email = "Please enter a valid email address";
-  }
-
-  if (!fields.password) {
-    errors.password = "Password is required";
-  } else if (!PASSWORD_RE.test(fields.password)) {
-    errors.password =
-      "Password must be 8–128 characters with uppercase, lowercase, and a number";
-  }
-
-  if (!fields.confirmPassword) {
-    errors.confirmPassword = "Please confirm your password";
-  } else if (fields.password !== fields.confirmPassword) {
-    errors.confirmPassword = "Passwords do not match";
-  }
-
-  return errors;
-}
+import { useFormFields } from "../hooks/useFormFields";
+import { validateRegister } from "../lib/validators";
 
 // Real-time password strength scoring (0–5)
 function scorePassword(p) {
@@ -71,48 +32,33 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const { register, loading, error, clearError, token } = useAuth();
 
-  const [fields, setFields] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [touched, setTouched] = useState({});
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Prevent double-submit
-  const submittingRef = useRef(false);
+  const {
+    fields,
+    fieldErrors,
+    submittingRef,
+    handleChange,
+    focusFirstError,
+    markErrors,
+    isValid,
+  } = useFormFields(
+    { name: "", email: "", password: "", confirmPassword: "" },
+    clearError,
+  );
 
   // Already logged in — redirect immediately
   useEffect(() => {
     if (token) navigate("/dashboard", { replace: true });
   }, [token, navigate]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFields((prev) => ({ ...prev, [name]: value }));
-    setTouched((prev) => ({ ...prev, [name]: true }));
-    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
-    if (error) clearError();
-  };
-
-  const focusFirstError = (errors) => {
-    const firstKey = Object.keys(errors)[0];
-    document.getElementById(firstKey)?.focus();
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submittingRef.current || loading) return;
 
-    const errors = validate(fields);
+    const errors = validateRegister(fields);
     if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
-      setTouched((prev) => ({
-        ...prev,
-        ...Object.fromEntries(Object.keys(errors).map((k) => [k, true])),
-      }));
+      markErrors(errors);
       focusFirstError(errors);
       return;
     }
@@ -121,7 +67,6 @@ export default function RegisterPage() {
     try {
       // confirmPassword is a UI-only field — never sent to the API
       const { confirmPassword: _unused, ...payload } = fields;
-      // Trim whitespace from name and email before sending
       payload.name = payload.name.trim();
       payload.email = payload.email.trim();
 
@@ -130,11 +75,10 @@ export default function RegisterPage() {
         setSuccessMsg("Account created! Redirecting to dashboard…");
         setTimeout(() => navigate("/dashboard", { replace: true }), 800);
       } else if (result.fieldErrors?.length) {
-        const mapped = {};
-        result.fieldErrors.forEach(({ field, message }) => {
-          mapped[field] = message;
-        });
-        setFieldErrors(mapped);
+        const mapped = Object.fromEntries(
+          result.fieldErrors.map(({ field, message }) => [field, message]),
+        );
+        markErrors(mapped);
         focusFirstError(mapped);
       }
     } finally {
@@ -144,8 +88,6 @@ export default function RegisterPage() {
 
   const strength = scorePassword(fields.password);
   const strengthConfig = STRENGTH_CONFIG[strength];
-  // A field is "valid" when touched, has a value, and is error-free
-  const isValid = (name) => touched[name] && fields[name] && !fieldErrors[name];
   // Real-time confirm-password match (only show when both have values)
   const confirmMatch =
     fields.confirmPassword && fields.password === fields.confirmPassword;

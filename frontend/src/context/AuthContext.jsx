@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import api from "../api/axios";
+import { extractApiError, extractFieldErrors } from "../lib/api";
 
 // ── Context definition ────────────────────────────────────────────────────────
 const AuthContext = createContext(null);
@@ -62,11 +63,11 @@ export function AuthProvider({ children }) {
         persist(data.token, data.user);
         return { success: true };
       } catch (err) {
-        const message =
-          err.response?.data?.message ||
-          "Registration failed. Please try again.";
-        // Server may return per-field errors: [{ field, message }]
-        const serverFieldErrors = err.response?.data?.errors ?? [];
+        const message = extractApiError(
+          err,
+          "Registration failed. Please try again.",
+        );
+        const serverFieldErrors = extractFieldErrors(err);
         setError(message);
         return { success: false, message, fieldErrors: serverFieldErrors };
       } finally {
@@ -86,10 +87,8 @@ export function AuthProvider({ children }) {
         persist(data.token, data.user);
         return { success: true };
       } catch (err) {
-        const message =
-          err.response?.data?.message || "Login failed. Please try again.";
-        // Server may return per-field errors: [{ field, message }]
-        const serverFieldErrors = err.response?.data?.errors ?? [];
+        const message = extractApiError(err, "Login failed. Please try again.");
+        const serverFieldErrors = extractFieldErrors(err);
         setError(message);
         return { success: false, message, fieldErrors: serverFieldErrors };
       } finally {

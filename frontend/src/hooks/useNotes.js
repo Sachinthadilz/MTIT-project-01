@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer } from "react";
 import api from "../api/axios";
+import { extractApiError } from "../lib/api";
 
 // ── State shape ───────────────────────────────────────────────────────────────
 const initialState = {
@@ -99,9 +100,10 @@ export function useNotes() {
     } catch (err) {
       dispatch({
         type: "FETCH_ERROR",
-        payload:
-          err.response?.data?.message ||
+        payload: extractApiError(
+          err,
           "Failed to load notes. Please try again.",
+        ),
       });
     }
   }, []);
@@ -119,7 +121,7 @@ export function useNotes() {
       dispatch({ type: "NOTE_CREATED", payload: data.note });
       return { success: true };
     } catch (err) {
-      const message = err.response?.data?.message || "Failed to create note.";
+      const message = extractApiError(err, "Failed to create note.");
       dispatch({ type: "SAVE_ERROR", payload: message });
       return { success: false, message };
     }
@@ -133,7 +135,7 @@ export function useNotes() {
       dispatch({ type: "NOTE_UPDATED", payload: data.note });
       return { success: true };
     } catch (err) {
-      const message = err.response?.data?.message || "Failed to update note.";
+      const message = extractApiError(err, "Failed to update note.");
       dispatch({ type: "SAVE_ERROR", payload: message });
       return { success: false, message };
     }
@@ -147,7 +149,7 @@ export function useNotes() {
       dispatch({ type: "NOTE_DELETED", payload: id });
       return { success: true };
     } catch (err) {
-      const message = err.response?.data?.message || "Failed to delete note.";
+      const message = extractApiError(err, "Failed to delete note.");
       dispatch({ type: "SAVE_ERROR", payload: message });
       return { success: false, message };
     }

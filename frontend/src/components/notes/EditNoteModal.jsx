@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import Spinner from "../ui/Spinner";
-
-const MAX_TITLE = 200;
-const MAX_CONTENT = 10000;
+import {
+  NOTE_MAX_TITLE as MAX_TITLE,
+  NOTE_MAX_CONTENT as MAX_CONTENT,
+} from "../../lib/constants";
 
 /**
  * EditNoteModal
