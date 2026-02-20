@@ -3,6 +3,7 @@ import "./App.css";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import NotesPage from "./pages/NotesPage";
+import LandingPage from "./pages/LandingPage";
 import PrivateRoute from "./components/PrivateRoute";
 
 /**
@@ -27,9 +28,10 @@ export default function App() {
         <Route path="/dashboard" element={<NotesPage />} />
       </Route>
 
-      {/* Default redirect */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* Landing page (public) */}
+      <Route path="/" element={<LandingPage />} />
+      {/* Unknown routes fall back to landing */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
