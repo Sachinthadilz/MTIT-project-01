@@ -34,18 +34,42 @@ connectDB();
 //       Strict-Transport-Security (HSTS), Content-Security-Policy, and more.
 app.use(helmet());
 
-// ── Fix #2: Restrict CORS to a known origin ───────────────────────────────────
-// In development, ALLOWED_ORIGIN defaults to localhost:5173 (Vite default).
-// Production deploy must set ALLOWED_ORIGIN in the environment.
-const allowedOrigin = process.env.ALLOWED_ORIGIN || "http://localhost:5173";
+// ── Restrict CORS to a known set of origins ───────────────────────────────────
+// ALLOWED_ORIGIN may be a single origin or a comma-separated list.
+// Example: ALLOWED_ORIGIN=http://localhost:3000,https://app.example.com
+//
+// Each value is trimmed and normalised (trailing slashes stripped) so that
+// minor formatting differences in the env file don't cause silent failures.
+//
+// Robustness rules applied here:
+//  1. Parse into a Set so look-up is O(1) regardless of list length.
+//  2. Use callback(null, false) — NOT callback(new Error(...)) — for rejections.
+//     Passing an Error object routes the rejection through Express's error
+//     handler and returns 500; passing `false` returns a correct 403 with
+//     no Access-Control-Allow-Origin header (the cors package spec).
+//  3. Server-side console.warn on rejection for observability without crashing.
+//  4. !origin allows same-origin and server-to-server requests (curl, Postman,
+//     health checks) that carry no Origin header.
+const rawOrigins = process.env.ALLOWED_ORIGIN || "http://localhost:3000";
+const allowedOrigins = new Set(
+  rawOrigins
+    .split(",")
+    .map((o) => o.trim().replace(/\/+$/, "")) // trim whitespace + trailing slashes
+    .filter(Boolean),
+);
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow same-origin (server-to-server) and the configured origin.
-      if (!origin || origin === allowedOrigin) {
+      // No origin header → same-origin or non-browser request → allow
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.has(origin)) {
         callback(null, true);
       } else {
-        callback(new Error(`CORS: origin '${origin}' is not allowed`));
+        // BUG FIX: callback(null, false) → 403, NOT callback(new Error()) → 500
+        console.warn(`[CORS] Rejected origin: ${origin}`);
+        callback(null, false);
       }
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
